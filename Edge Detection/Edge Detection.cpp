@@ -25,16 +25,16 @@ Mat preProcessing(Mat image)
 
 int xGradientSobel(Mat image, int x, int y)
 {
-    return -image.at<uchar>(x - 1, y - 1) - 2 * image.at<uchar>(x - 1, y + 1)
+    return -image.at<uchar>(x - 1, y - 1) - 2 * image.at<uchar>(x - 1, y)
         - image.at<uchar>(x - 1, y + 1) + image.at<uchar>(x + 1, y - 1)
         + 2 * image.at<uchar>(x + 1, y) + image.at<uchar>(x + 1, y + 1);
 }
 
 int yGradientSobel(Mat image, int x, int y)
 {
-    return image.at<uchar>(x - 1, y - 1) + 2 * image.at<uchar>(x, y - 1)
-        + image.at<uchar>(x + 1, y - 1) - image.at<uchar>(x - 1, y + 1)
-        - 2 * image.at<uchar>(x, y + 1) - image.at<uchar>(x + 1, y + 1);
+    return -image.at<uchar>(x - 1, y - 1) - 2 * image.at<uchar>(x, y - 1)
+        - image.at<uchar>(x + 1, y - 1) + image.at<uchar>(x - 1, y + 1)
+        + 2 * image.at<uchar>(x, y + 1) + image.at<uchar>(x + 1, y + 1);
 }
 
 int xGradientPrewitt(Mat image, int x, int y)
@@ -132,13 +132,13 @@ int isEdge(Mat image, int x, int y, int direction)
     return 0;
 }
 
-bool isNeighborOfEdge(Mat image, int x, int y, int highThreshold)
+bool isNeighborOfEdge(Mat image, int x, int y, int threshold)
 {
     int horizontalSearch[] = { -1, 0, 1 };
     int verticalSearch[] = { -1,0,1 };
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < 3; ++j)
-            if (gradient(image, horizontalSearch[i], verticalSearch[j], "sobel") >= highThreshold)
+            if (gradient(image, x+horizontalSearch[i],y+ verticalSearch[j], "sobel") >= threshold)
                 return true;
     return false;
 }
@@ -259,7 +259,7 @@ int detectedByLaplace(Mat src, Mat des)
     return 1;
 }
 
-int detectedByCanny(Mat src, Mat des)
+int detectedByCanny(Mat src, Mat des, int lowThreshold, int highThreshold)
 {
     int gx, gy, g;
     double tan;
@@ -285,22 +285,17 @@ int detectedByCanny(Mat src, Mat des)
     }
 
     // Double Threshold
-    int highThreshold = maxGradient * 0.12;
-    int lowThreshold = maxGradient * 0.08;
 
     for(int i =1; i< src.rows; ++i)
         for (int j = 1; j < src.cols; ++j)
         {
             g = gradient(src, i, j, "sobel");
-            if (g >= highThreshold)
-                des.at<uchar>(i, j) = 255;
-            else if (g >= lowThreshold)
+            if (g >= lowThreshold && g < highThreshold)
             {
-                if (isNeighborOfEdge(src, i, j, highThreshold) == 1)
-                    des.at<uchar>(i, j) = g;
-                else des.at<uchar>(i, j) = 0;
+                if (isNeighborOfEdge(src, i, j, highThreshold) == 0)
+                    des.at<uchar>(i, j) = 0;
             }
-            else
+            else if(g < lowThreshold)
                 des.at<uchar>(i, j) = 0;
         }
 
@@ -336,16 +331,48 @@ int main(int argc, char** argv)
         else if (strcmp(argv[2], "prewitt") == 0)
             int b = detectedByPrewitt(src, des, 1, 1);
         else if (strcmp(argv[2], "laplace") == 0)
-            int c = detectedByCanny(src, des);
+            int c = detectedByLaplace(src, des);
         else if (strcmp(argv[2], "canny") == 0)
-            int d = detectedByLaplace(src, des);
+            int d = detectedByCanny(src, des, 100, 200);
         else cout << "Cu phap cho viec khoi chay chuong trinh khong hop le\n";
+        
+        image.release();
+        src.release();
+        des.release();
+    }
+    else if (argc == 4)
+    {
+        Mat image = imread(argv[1], IMREAD_COLOR);
+        if (!image.data)
+        {
+            cout << "Loi: khong the mo anh\n";
+            return -1;
+        }
+        Mat src = preProcessing(image);
 
-        /*Sobel(src, des, CV_64F, 1, 1);
+        Mat des = src.clone();
 
-        namedWindow("display", WINDOW_AUTOSIZE);
-        imshow("display", des);
-        waitKey(0);*/
+        if (strcmp(argv[2], "sobel") == 0)
+        {
+            Sobel(src, des, CV_32F, 1, 1, 3, 1, 0, BORDER_DEFAULT);
+        }
+        else if (strcmp(argv[2], "laplace") == 0)
+        {
+            Laplacian(src, des, CV_32F, 3, 1, 0, BORDER_DEFAULT);
+        }
+        else if (strcmp(argv[2], "canny") == 0)
+        {
+            Canny(src, des, 100, 200, 3, false);
+        }
+        else 
+        {
+            cout << "Cu phap cho viec khoi chay chuong trinh khong hop le\n";
+            return -1;
+        }
+
+        namedWindow("Display test", WINDOW_AUTOSIZE);
+        imshow("Display test", des);
+        waitKey(0);
 
         image.release();
         src.release();
